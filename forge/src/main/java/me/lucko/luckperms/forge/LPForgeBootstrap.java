@@ -25,19 +25,18 @@
 
 package me.lucko.luckperms.forge;
 
-import com.mojang.authlib.GameProfile;
 import me.lucko.luckperms.common.loader.LoaderBootstrap;
+import me.lucko.luckperms.common.minecraft.MinecraftLuckPermsBootstrap;
+import me.lucko.luckperms.common.minecraft.MinecraftSchedulerAdapter;
 import me.lucko.luckperms.common.plugin.bootstrap.BootstrappedWithLoader;
 import me.lucko.luckperms.common.plugin.bootstrap.LuckPermsBootstrap;
 import me.lucko.luckperms.common.plugin.classpath.ClassPathAppender;
 import me.lucko.luckperms.common.plugin.classpath.JarInJarClassPathAppender;
 import me.lucko.luckperms.common.plugin.logging.Log4jPluginLogger;
 import me.lucko.luckperms.common.plugin.logging.PluginLogger;
-import me.lucko.luckperms.common.plugin.scheduler.SchedulerAdapter;
+import me.lucko.luckperms.common.util.BuildInfo;
 import net.luckperms.api.platform.Platform;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.PlayerList;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.bus.BusGroup;
@@ -56,17 +55,15 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
 
 /**
  * Bootstrap plugin for LuckPerms running on Forge.
  */
-public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstrap, BootstrappedWithLoader {
+public final class LPForgeBootstrap extends MinecraftLuckPermsBootstrap implements LuckPermsBootstrap, LoaderBootstrap, BootstrappedWithLoader {
     public static final String ID = "luckperms";
 
     /**
@@ -82,7 +79,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
     /**
      * A scheduler adapter for the platform
      */
-    private final SchedulerAdapter schedulerAdapter;
+    private final MinecraftSchedulerAdapter schedulerAdapter;
 
     /**
      * The plugin class path appender
@@ -116,7 +113,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
     public LPForgeBootstrap(Supplier<ModContainer> loader) {
         this.loader = loader;
         this.logger = new Log4jPluginLogger(LogManager.getLogger(LPForgeBootstrap.ID));
-        this.schedulerAdapter = new ForgeSchedulerAdapter(this);
+        this.schedulerAdapter = new MinecraftSchedulerAdapter(this);
         this.classPathAppender = new JarInJarClassPathAppender(getClass().getClassLoader());
         this.plugin = new LPForgePlugin(this);
     }
@@ -134,7 +131,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
     }
 
     @Override
-    public SchedulerAdapter getScheduler() {
+    public MinecraftSchedulerAdapter getScheduler() {
         return this.schedulerAdapter;
     }
 
@@ -198,8 +195,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
         return this.enableLatch;
     }
 
-    // MinecraftServer singleton getter
-
+    @Override
     public Optional<MinecraftServer> getServer() {
         return Optional.ofNullable(this.server);
     }
@@ -208,7 +204,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
 
     @Override
     public String getVersion() {
-        return "@version@";
+        return BuildInfo.VERSION;
     }
 
     @Override
@@ -225,7 +221,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
 
     @Override
     public String getServerBrand() {
-        return ModList.get().getModContainerById("forge")
+        return ModList.getModContainerById("forge")
                 .map(ModContainer::getModInfo)
                 .map(IModInfo::getDisplayName)
                 .orElse("null");
@@ -233,7 +229,7 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
 
     @Override
     public String getServerVersion() {
-        String forgeVersion = ModList.get().getModContainerById("forge")
+        String forgeVersion = ModList.getModContainerById("forge")
                 .map(ModContainer::getModInfo)
                 .map(IModInfo::getVersion)
                 .map(ArtifactVersion::toString)
@@ -245,53 +241,6 @@ public final class LPForgeBootstrap implements LuckPermsBootstrap, LoaderBootstr
     @Override
     public Path getDataDirectory() {
         return FMLPaths.CONFIGDIR.get().resolve(LPForgeBootstrap.ID).toAbsolutePath();
-    }
-
-    @Override
-    public Optional<ServerPlayer> getPlayer(UUID uniqueId) {
-        return getServer().map(MinecraftServer::getPlayerList).map(playerList -> playerList.getPlayer(uniqueId));
-    }
-
-    @Override
-    public Optional<UUID> lookupUniqueId(String username) {
-        return getServer().map(MinecraftServer::getProfileCache).flatMap(profileCache -> profileCache.get(username)).map(GameProfile::getId);
-    }
-
-    @Override
-    public Optional<String> lookupUsername(UUID uniqueId) {
-        return getServer().map(MinecraftServer::getProfileCache).flatMap(profileCache -> profileCache.get(uniqueId)).map(GameProfile::getName);
-    }
-
-    @Override
-    public int getPlayerCount() {
-        return getServer().map(MinecraftServer::getPlayerCount).orElse(0);
-    }
-
-    @Override
-    public Collection<String> getPlayerList() {
-        return getServer().map(MinecraftServer::getPlayerList).map(PlayerList::getPlayers).map(players -> {
-            List<String> list = new ArrayList<>(players.size());
-            for (ServerPlayer player : players) {
-                list.add(player.getGameProfile().getName());
-            }
-            return list;
-        }).orElse(Collections.emptyList());
-    }
-
-    @Override
-    public Collection<UUID> getOnlinePlayers() {
-        return getServer().map(MinecraftServer::getPlayerList).map(PlayerList::getPlayers).map(players -> {
-            List<UUID> list = new ArrayList<>(players.size());
-            for (ServerPlayer player : players) {
-                list.add(player.getGameProfile().getId());
-            }
-            return list;
-        }).orElse(Collections.emptyList());
-    }
-
-    @Override
-    public boolean isPlayerOnline(UUID uniqueId) {
-        return getServer().map(MinecraftServer::getPlayerList).map(playerList -> playerList.getPlayer(uniqueId)).isPresent();
     }
 
 }

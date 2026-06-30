@@ -80,6 +80,7 @@ public interface Platform {
         FORGE("Forge"),
         MINESTOM("Minestom"),
         STANDALONE("Standalone");
+        HYTALE("Hytale");
 
         private final String friendlyName;
 
