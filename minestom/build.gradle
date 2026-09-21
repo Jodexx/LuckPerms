@@ -4,16 +4,17 @@ plugins {
     id "java-library"
 }
 
-// minestom requires java 21+
-//sourceCompatibility = 25
-//targetCompatibility = 25
+// minestom requires java 25+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    var minestom = "net.minestom:minestom:2026.05.17b-26.1.1"
+    var minestom = "2026.09.12-26.2"
 
     api(project(":common")) {
         // exclude default config providers as they are inaccessible from the minestom module anyway
@@ -23,14 +24,14 @@ dependencies {
         exclude group: "me.lucko.configurate", module: "configurate-toml"
     }
     api("org.slf4j:slf4j-api:2.0.17")
-    compileOnly minestom
+    compileOnly("net.minestom:minestom:" + minestom)
 
     // testing
     testImplementation(project(":common")) {
         // exclude default configurate dependency as it is wildly outdated
         exclude group: "org.spongepowered", module: "configurate-core"
     }
-    testImplementation minestom
+    testImplementation "net.minestom:testing:" + minestom
     testImplementation "commons-net:commons-net:3.11.1" // fix vulnerability in minestom
     testImplementation "ch.qos.logback:logback-classic:1.5.18" // logger
 
